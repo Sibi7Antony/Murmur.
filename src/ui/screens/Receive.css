@@ -1,0 +1,122 @@
+.spectrogram-container {
+  width: 100%;
+  background: rgba(18, 16, 42, 0.9);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 20px;
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.spectrogram-canvas {
+  width: 100%;
+  height: 120px;
+  display: block;
+}
+
+.receive-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.metric-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 10px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.metric-label {
+  font-size: 0.7rem;
+  color: var(--ink-muted);
+}
+
+.metric-val {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin-top: 2px;
+  text-transform: capitalize;
+}
+
+@media (max-width: 480px) {
+  .receive-metrics {
+    gap: 6px;
+  }
+
+  .metric-box {
+    padding: 8px 4px;
+  }
+
+  .metric-label {
+    font-size: 0.65rem;
+  }
+
+  .metric-val {
+    font-size: 0.8rem;
+  }
+}
+
+.passphrase-prompt {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+  padding: 16px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.success-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+}
+
+.success-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(52, 199, 89, 0.18);
+  border: 1px solid var(--status-green);
+  color: #1B7A35;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.file-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.file-summary h3 {
+  font-size: 1.2rem;
+  color: var(--ink);
+}
+
+.file-summary p {
+  font-size: 0.8125rem;
+  color: var(--ink-muted);
+}
+
+.sha-text {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-light);
+  background: rgba(0, 0, 0, 0.05);
+  padding: 4px 8px;
+  border-radius: 4px;
+}

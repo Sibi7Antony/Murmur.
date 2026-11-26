@@ -1,0 +1,17 @@
+.hero-waveform-container {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 220px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: var(--z-waveform);
+  overflow: visible;
+}
+
+.hero-waveform-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}

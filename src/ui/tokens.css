@@ -1,0 +1,114 @@
+/* ===================================================================
+ * Design tokens -- CSS custom properties.
+ * All colours, sizes and timing in one file.
+ * =================================================================== */
+
+@font-face {
+  font-family: 'Carmana';
+  src: url('/fonts/Carmana.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Nt Voyager';
+  src: url('/fonts/Nt Voyager.ttf') format('truetype'),
+    url('/fonts/Nt Voyager.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* --- Typography: TRIAL Riegraf for nav and text --- */
+  --font-title: 'Carmana', 'Playfair Display', Georgia, serif;
+  --font-nav: 'TRIAL Riegraf', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-mono: 'IBM Plex Mono', 'Courier New', Courier, monospace;
+  --font-body: 'TRIAL Riegraf', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-voyager: 'TRIAL Riegraf', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* --- Background gradient ---------------------------------------- */
+  --bg-lavender: #B8A6F0;
+  --bg-periwinkle: #6E7BFF;
+  --bg-peach: #F4C9C0;
+  --bg-pink: #F2B8D0;
+  --bg-orange: #F07F45;
+  --bg-coral: #E8624A;
+  --bg-navy: #141A4A;
+  --bg-indigo: #2A2F8F;
+
+  /* --- Ink / text ------------------------------------------------- */
+  --ink: #FFFFFF;
+  --ink-light: #EDE7F6;
+  --ink-muted: #B8B0C8;
+  --ink-on-dark: #FFFFFF;
+  --ink-on-glass: #FFFFFF;
+
+  /* --- Glass ------------------------------------------------------ */
+  --glass-bg: rgba(255, 255, 255, 0.12);
+  --glass-bg-hover: rgba(255, 255, 255, 0.18);
+  --glass-border: rgba(255, 255, 255, 0.22);
+  --glass-border-subtle: rgba(255, 255, 255, 0.14);
+  --glass-blur: 20px;
+  --glass-saturate: 150%;
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.32);
+  --glass-shadow-elevated: 0 14px 44px rgba(0, 0, 0, 0.42);
+
+  /* --- Status ----------------------------------------------------- */
+  --status-green: #34C759;
+  --status-amber: #FFAA00;
+  --status-blue: #007AFF;
+  --status-teal: #30B0A0;
+  --status-red: #FF3B30;
+  --status-violet: #A855F7;
+
+  /* --- Buttons ---------------------------------------------------- */
+  --btn-dark-from: #FF6636;
+  --btn-dark-to: #DF2E10;
+  --btn-glow: rgba(255, 80, 36, 0.45);
+  --btn-glow-hover: rgba(255, 80, 36, 0.65);
+  --btn-min-height: 48px;
+
+  /* --- Sizing ----------------------------------------------------- */
+  --nav-height: 48px;
+  --nav-pill-radius: 24px;
+  --card-radius: 20px;
+  --feature-radius: 16px;
+  --btn-radius: 28px;
+
+  /* --- Timing ----------------------------------------------------- */
+  --transition-fast: 150ms ease;
+  --transition-normal: 300ms ease;
+  --transition-slow: 500ms ease;
+
+  /* --- Focus ------------------------------------------------------ */
+  --focus-ring: 2px solid rgba(107, 114, 255, 0.8);
+  --focus-offset: 2px;
+
+  /* --- Z layers --------------------------------------------------- */
+  --z-bg: 0;
+  --z-blobs: 1;
+  --z-statues: 2;
+  --z-grain: 3;
+  --z-waveform: 4;
+  --z-content: 10;
+  --z-nav: 20;
+  --z-modal: 30;
+
+  /* --- Grain ------------------------------------------------------ */
+  --grain-opacity: 0.09;
+
+  /* --- Responsive wordmark ---------------------------------------- */
+  --wordmark-size: clamp(3.5rem, 5.5vw, 7rem);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0ms;
+    --transition-normal: 0ms;
+    --transition-slow: 0ms;
+  }
+}

@@ -1,0 +1,33 @@
+.bg {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-bg);
+  overflow: hidden;
+  background-color: #0d0814;
+}
+
+.bg-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url('/background.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transform: scale(1.01);
+  will-change: transform;
+}
+
+/* Subtle ambient radial vignette to enhance text readability & depth */
+.bg-overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 45%,
+    rgba(13, 8, 20, 0.15) 0%,
+    rgba(10, 6, 16, 0.45) 70%,
+    rgba(7, 3, 12, 0.72) 100%
+  );
+  pointer-events: none;
+}

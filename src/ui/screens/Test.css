@@ -1,0 +1,124 @@
+.tab-bar {
+  display: flex;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 24px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink-light);
+  transition: all var(--transition-fast);
+}
+
+.tab-btn--active {
+  background: rgba(255, 255, 255, 0.22);
+  color: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.gauge-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.gauge-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 16px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.gauge-val {
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.gauge-lbl {
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+  margin-top: 4px;
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .tab-btn {
+    padding: 8px 6px;
+    font-size: 0.78rem;
+  }
+
+  .gauge-grid {
+    gap: 6px;
+  }
+
+  .gauge-card {
+    padding: 10px 4px;
+  }
+
+  .gauge-val {
+    font-size: 1rem;
+  }
+
+  .gauge-lbl {
+    font-size: 0.65rem;
+  }
+}
+
+.loopback-results {
+  margin-bottom: 24px;
+}
+
+.status-badge {
+  text-align: center;
+  padding: 10px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  margin-bottom: 16px;
+}
+
+.status-badge--ok {
+  background: rgba(52, 199, 89, 0.18);
+  border: 1px solid var(--status-green);
+  color: #1B7A35;
+}
+
+.status-badge--err {
+  background: rgba(255, 59, 48, 0.18);
+  border: 1px solid var(--status-red);
+  color: var(--status-red);
+}
+
+.settings-audit {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.settings-audit h4 {
+  font-size: 0.84rem;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+.settings-audit ul {
+  list-style: none;
+  font-size: 0.8rem;
+  color: var(--ink-light);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
