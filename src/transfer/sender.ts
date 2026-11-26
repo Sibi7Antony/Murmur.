@@ -48,6 +48,7 @@ export class RealSendSession implements SendSession {
     this._stopped = true;
     this.progress = { ...this.progress, state: 'cancelled' };
     this._notify();
+    this._audioEngine.stop();
   }
 
   private _notify(): void {
@@ -109,15 +110,14 @@ export class RealSendSession implements SendSession {
 
       const startTime = Date.now();
       let packetIdx = 0;
+      let transmissionCount = 0;
 
       // Loop packets until stopped
       while (!this._stopped) {
-        // Send metadata packet every 4th packet
+        // Send metadata packet every 4th transmission (transmission 0, 4, 8, ...)
         let frameData: Uint8Array;
-        let isMeta = false;
 
-        if (packetIdx % 4 === 0) {
-          isMeta = true;
+        if (transmissionCount % 4 === 0) {
           const header: PacketHeader = {
             version: 1,
             sessionId,
@@ -136,7 +136,9 @@ export class RealSendSession implements SendSession {
             payloadLen: encResult.data.length,
           };
           frameData = buildFrame(header, encResult.data);
+          packetIdx++;
         }
+        transmissionCount++;
 
         // Convert frame to audio
         const symbols = bytesToSymbols(frameData, preset.bitsPerSymbol);
@@ -148,10 +150,6 @@ export class RealSendSession implements SendSession {
         packetAudio.set(dataAudio, packetSyncAudio.length);
 
         await this._audioEngine.playSamples(packetAudio);
-
-        if (!isMeta) {
-          packetIdx++;
-        }
 
         this.progress = {
           ...this.progress,

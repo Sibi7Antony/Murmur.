@@ -63,9 +63,16 @@ export function sampleDegree(k: number, prng: ReturnType<typeof createPrng>): nu
 
 /**
  * Deterministically get neighbor block indices for a given packet index and block count K.
+ * Systematic LT: The first K packets (0..k-1) directly represent each source block.
+ * Subsequent packets (>= k) use Robust Soliton random combinations for erasure recovery.
  */
 export function getNeighbors(packetIndex: number, k: number): number[] {
   if (k <= 1) return [0];
+
+  // Systematic packets: first K packets correspond directly to source blocks
+  if (packetIndex < k) {
+    return [packetIndex];
+  }
 
   const prng = createPrng(packetIndex * 1337 + 42);
   const degree = sampleDegree(k, prng);

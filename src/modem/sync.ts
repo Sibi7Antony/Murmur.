@@ -86,3 +86,62 @@ export function detectPreamble(
 
   return { detected: false, sampleIndex: -1, snrEstimate: Math.round(snrEst * 10) / 10 };
 }
+
+/**
+ * Detect per-packet short re-sync chirp in incoming buffer.
+ */
+export function detectPacketSync(
+  buffer: Float32Array,
+  sampleRate: number,
+  threshold = 3.5, // Peak-to-average ratio threshold for packet chirp
+): SyncDetectionResult {
+  const chirp = getPacketSyncChirp(sampleRate);
+  if (buffer.length < chirp.length) {
+    return { detected: false, sampleIndex: -1, snrEstimate: 0 };
+  }
+
+  const corr = crossCorrelate(buffer, chirp);
+
+  let maxVal = 0;
+  let maxIdx = 0;
+  let sum = 0;
+
+  for (let i = 0; i < corr.length; i++) {
+    const val = Math.abs(corr[i]);
+    sum += val;
+    if (val > maxVal) {
+      maxVal = val;
+      maxIdx = i;
+    }
+  }
+
+  const avg = sum / corr.length;
+  const peakToAvg = avg > 0 ? maxVal / avg : 0;
+  const snrEst = peakToAvg > 1 ? 20 * Math.log10(peakToAvg) : 0;
+
+  if (peakToAvg >= threshold) {
+    return {
+      detected: true,
+      sampleIndex: maxIdx,
+      snrEstimate: Math.round(snrEst * 10) / 10,
+    };
+  }
+
+  return { detected: false, sampleIndex: -1, snrEstimate: Math.round(snrEst * 10) / 10 };
+}
+
+/**
+ * Verify received sync word against expected SYNC_WORD with fault tolerance.
+ */
+export function verifySyncWord(
+  symbols: number[],
+  expected: number[] = SYNC_WORD,
+  minMatches = 4,
+): boolean {
+  if (symbols.length < expected.length) return false;
+  let matches = 0;
+  for (let i = 0; i < expected.length; i++) {
+    if (symbols[i] === expected[i]) matches++;
+  }
+  return matches >= minMatches;
+}

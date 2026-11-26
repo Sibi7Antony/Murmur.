@@ -57,9 +57,12 @@ export class MurmurAudioEngine {
       } catch (err) {
         // If already added, mark as loaded
         this._workletLoaded = true;
-      } finally {
-        URL.revokeObjectURL(workletUrl);
       }
+      setTimeout(() => {
+        try {
+          URL.revokeObjectURL(workletUrl);
+        } catch {}
+      }, 5000);
     }
 
     // Request raw audio without processing
@@ -167,7 +170,11 @@ export class MurmurAudioEngine {
         this._activeSources = this._activeSources.filter((s) => s !== source);
         resolve();
       };
-      source.start();
+      try {
+        source.start();
+      } catch {
+        resolve();
+      }
     });
   }
 

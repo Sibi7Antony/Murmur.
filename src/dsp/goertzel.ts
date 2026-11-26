@@ -20,8 +20,7 @@ export function goertzel(
   const n = samples.length;
   if (n === 0) return { freqHz: targetFreqHz, magnitude: 0, power: 0 };
 
-  const k = Math.round((n * targetFreqHz) / sampleRate);
-  const omega = (2 * Math.PI * k) / n;
+  const omega = (2 * Math.PI * targetFreqHz) / sampleRate;
   const coeff = 2 * Math.cos(omega);
 
   let q0 = 0.0;

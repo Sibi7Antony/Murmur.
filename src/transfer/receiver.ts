@@ -1,7 +1,7 @@
 /* ===================================================================
  * Receiver State Machine.
- * Listens via AudioWorklet, detects preamble chirps, demodulates packets,
- * decodes fountain code, decrypts if required, and verifies SHA-256.
+ * Listens via AudioWorklet, detects packet sync chirps, demodulates
+ * MFSK symbols, decodes fountain code, decrypts if required, and verifies SHA-256.
  * =================================================================== */
 
 import {
@@ -12,9 +12,19 @@ import {
   ReceiveResult,
 } from '../engine/types';
 import { FountainDecoder } from '../codec/fountain';
-import { parseFrame, deserializeMetadata, MetadataPayload } from '../codec/framing';
+import {
+  parseFrame,
+  deserializeMetadata,
+  decodeHeader,
+  MetadataPayload,
+  PacketHeader,
+  PROTOCOL_VERSION,
+  SYNC_WORD,
+} from '../codec/framing';
 import { decryptBytes, computeSha256Hex } from '../codec/crypto';
-import { detectPreamble } from '../modem/sync';
+import { detectPacketSync, verifySyncWord } from '../modem/sync';
+import { demodulateMFSK, symbolsToBytes } from '../modem/mfsk';
+import { getPacketSyncChirp } from '../dsp/chirp';
 import { MurmurAudioEngine } from '../audio/engine';
 
 export class RealReceiveSession implements ReceiveSession {
@@ -27,8 +37,10 @@ export class RealReceiveSession implements ReceiveSession {
   private _metadata: MetadataPayload | null = null;
   private _audioEngine: MurmurAudioEngine;
   private _passphraseResolve: ((p: string) => void) | null = null;
-  private _rollingBuffer: Float32Array;
-  private _bufferPos = 0;
+  private _streamBuffer: Float32Array = new Float32Array(0);
+  private _pendingPackets: Array<{ header: PacketHeader; payload: Uint8Array }> = [];
+  private _isProcessing = false;
+  private _startTime = 0;
 
   constructor(
     private readonly _presetName: PresetName,
@@ -36,7 +48,6 @@ export class RealReceiveSession implements ReceiveSession {
     audioEngine: MurmurAudioEngine,
   ) {
     this._audioEngine = audioEngine;
-    this._rollingBuffer = new Float32Array(48000 * 2); // 2 second circular buffer
     this.progress = {
       state: 'preparing',
       blocksReceived: 0,
@@ -80,6 +91,7 @@ export class RealReceiveSession implements ReceiveSession {
     this._stopped = true;
     this.progress = { ...this.progress, state: 'cancelled' };
     this._notify();
+    this._audioEngine.stop();
   }
 
   private _notify(): void {
@@ -88,8 +100,7 @@ export class RealReceiveSession implements ReceiveSession {
 
   private async _startListening(): Promise<void> {
     try {
-      const preset = PRESETS[this._presetName];
-      const startTime = Date.now();
+      this._startTime = Date.now();
 
       await this._audioEngine.startListening((pcmChunk) => {
         if (this._stopped) return;
@@ -98,32 +109,25 @@ export class RealReceiveSession implements ReceiveSession {
         const binCount = 64;
         const bins = new Float32Array(binCount);
         const step = Math.floor(pcmChunk.length / binCount);
-        for (let i = 0; i < binCount; i++) {
-          let sum = 0;
-          for (let j = 0; j < step; j++) {
-            sum += Math.abs(pcmChunk[i * step + j]);
+        if (step > 0) {
+          for (let i = 0; i < binCount; i++) {
+            let sum = 0;
+            for (let j = 0; j < step; j++) {
+              sum += Math.abs(pcmChunk[i * step + j]);
+            }
+            bins[i] = Math.min(1.0, (sum / step) * 4);
           }
-          bins[i] = Math.min(1.0, (sum / step) * 4);
         }
         this._specSubs.forEach((cb) => cb(bins));
 
-        // Append to rolling buffer
-        for (let i = 0; i < pcmChunk.length; i++) {
-          this._rollingBuffer[this._bufferPos] = pcmChunk[i];
-          this._bufferPos = (this._bufferPos + 1) % this._rollingBuffer.length;
-        }
+        // Append to stream buffer
+        const newBuf = new Float32Array(this._streamBuffer.length + pcmChunk.length);
+        newBuf.set(this._streamBuffer, 0);
+        newBuf.set(pcmChunk, this._streamBuffer.length);
+        this._streamBuffer = newBuf;
 
-        // Preamble detection
-        const syncRes = detectPreamble(pcmChunk, preset, this._audioEngine.sampleRate);
-        if (syncRes.detected) {
-          this.progress = {
-            ...this.progress,
-            state: 'receiving',
-            snrEstimate: syncRes.snrEstimate,
-            elapsedMs: Date.now() - startTime,
-          };
-          this._notify();
-        }
+        // Trigger asynchronous stream processing
+        this._processStream().catch(() => {});
       });
 
       this.progress = { ...this.progress, state: 'active' };
@@ -131,6 +135,128 @@ export class RealReceiveSession implements ReceiveSession {
     } catch {
       this.progress = { ...this.progress, state: 'error' };
       this._notify();
+    }
+  }
+
+  /**
+   * Scan incoming stream buffer for packet sync chirps, decode headers and demodulate frames.
+   */
+  private async _processStream(): Promise<void> {
+    if (this._isProcessing || this._stopped) return;
+    this._isProcessing = true;
+
+    try {
+      const preset = PRESETS[this._presetName];
+      const sampleRate = this._audioEngine.sampleRate;
+      const chirp = getPacketSyncChirp(sampleRate);
+      const samplesPerSymbol = Math.round((preset.symbolDurationMs / 1000) * sampleRate);
+
+      const headerSymbolCount = Math.ceil((8 * 8) / preset.bitsPerSymbol);
+      const minPacketSamples = chirp.length + (SYNC_WORD.length + headerSymbolCount) * samplesPerSymbol;
+
+      while (!this._stopped && this._streamBuffer.length >= minPacketSamples) {
+        // Search window: up to 32768 samples (~0.68s at 48kHz)
+        const searchLen = Math.min(this._streamBuffer.length, 32768);
+        const searchWindow = this._streamBuffer.subarray(0, searchLen);
+
+        const syncRes = detectPacketSync(searchWindow, sampleRate, 3.5);
+
+        if (!syncRes.detected) {
+          // No sync chirp detected: slide window forward, keeping safe chirp overlap
+          const discard = Math.max(0, searchLen - chirp.length * 2);
+          if (discard > 0) {
+            this._sliceStreamBuffer(discard);
+          }
+          break; // Need more incoming samples
+        }
+
+        const peakIdx = syncRes.sampleIndex;
+        const syncWordStart = peakIdx + chirp.length;
+        const syncWordEnd = syncWordStart + SYNC_WORD.length * samplesPerSymbol;
+
+        if (this._streamBuffer.length < syncWordEnd) {
+          // Wait for more samples to arrive for sync word
+          break;
+        }
+
+        // Check sync word
+        const syncSlice = this._streamBuffer.subarray(syncWordStart, syncWordEnd);
+        const syncSymbols = demodulateMFSK(syncSlice, SYNC_WORD.length, preset, sampleRate);
+
+        if (!verifySyncWord(syncSymbols, SYNC_WORD, 4)) {
+          // False trigger or corrupt sync word: advance past this chirp and continue
+          this._sliceStreamBuffer(peakIdx + chirp.length);
+          continue;
+        }
+
+        // Lock onto packet! Update UI SNR estimate
+        this.progress = {
+          ...this.progress,
+          state: 'receiving',
+          snrEstimate: syncRes.snrEstimate,
+          elapsedMs: Date.now() - this._startTime,
+        };
+        this._notify();
+
+        // Demodulate header
+        const headerStart = syncWordEnd;
+        const headerEnd = headerStart + headerSymbolCount * samplesPerSymbol;
+
+        if (this._streamBuffer.length < headerEnd) {
+          // Wait for header samples
+          break;
+        }
+
+        const headerSlice = this._streamBuffer.subarray(headerStart, headerEnd);
+        const headerSymbols = demodulateMFSK(headerSlice, headerSymbolCount, preset, sampleRate);
+        const headerBytes = symbolsToBytes(headerSymbols, preset.bitsPerSymbol, 8);
+
+        let header: PacketHeader;
+        try {
+          header = decodeHeader(headerBytes);
+        } catch {
+          this._sliceStreamBuffer(headerStart);
+          continue;
+        }
+
+        if (header.version !== PROTOCOL_VERSION || header.payloadLen > 1024) {
+          this._sliceStreamBuffer(headerStart);
+          continue;
+        }
+
+        // Calculate full frame length: 8 (header) + payloadLen + 2 (CRC-16)
+        const totalFrameBytes = 8 + header.payloadLen + 2;
+        const totalFrameSymbols = Math.ceil((totalFrameBytes * 8) / preset.bitsPerSymbol);
+        const totalFrameSamples = totalFrameSymbols * samplesPerSymbol;
+        const packetEnd = headerStart + totalFrameSamples;
+
+        if (this._streamBuffer.length < packetEnd) {
+          // Wait for all payload & CRC samples to arrive
+          break;
+        }
+
+        // Demodulate entire frame
+        const frameSlice = this._streamBuffer.subarray(headerStart, packetEnd);
+        const frameSymbols = demodulateMFSK(frameSlice, totalFrameSymbols, preset, sampleRate);
+        const frameBytes = symbolsToBytes(frameSymbols, preset.bitsPerSymbol, totalFrameBytes);
+
+        // Process frame
+        await this.processFrame(frameBytes);
+
+        // Advance buffer past this packet
+        this._sliceStreamBuffer(packetEnd);
+      }
+    } finally {
+      this._isProcessing = false;
+    }
+  }
+
+  private _sliceStreamBuffer(offset: number): void {
+    if (offset >= this._streamBuffer.length) {
+      this._streamBuffer = new Float32Array(0);
+    } else {
+      // Allocate fresh buffer if offset has accumulated to prevent memory retention
+      this._streamBuffer = this._streamBuffer.slice(offset);
     }
   }
 
@@ -143,6 +269,7 @@ export class RealReceiveSession implements ReceiveSession {
       this.progress = {
         ...this.progress,
         packetsFailed: this.progress.packetsFailed + 1,
+        elapsedMs: Date.now() - this._startTime,
       };
       this._notify();
       return;
@@ -158,21 +285,56 @@ export class RealReceiveSession implements ReceiveSession {
         this._decoder = new FountainDecoder(meta.blockCount, meta.blockSize);
         this.progress = {
           ...this.progress,
+          state: 'receiving',
           totalBlocks: meta.blockCount,
+          packetsDecoded: this.progress.packetsDecoded + 1,
           needsPassphrase: meta.encrypted && !this._passphrase,
+          elapsedMs: Date.now() - this._startTime,
         };
         this._notify();
+
+        // Drain any pending data packets received before metadata arrived
+        for (const pending of this._pendingPackets) {
+          if (!this._decoder.isComplete) {
+            this._decoder.addPacket(pending.header.packetIndex, pending.payload);
+            this.progress = {
+              ...this.progress,
+              blocksReceived: this._decoder.recoveredCount,
+            };
+          }
+        }
+        this._pendingPackets = [];
+        this._notify();
+
+        if (this._decoder.isComplete) {
+          await this._finalizeTransfer();
+        }
       }
       return;
     }
 
-    // Source packet
-    if (this._decoder && !this._decoder.isComplete) {
+    // Data packet
+    if (!this._decoder) {
+      // Buffer packet until metadata arrives
+      this._pendingPackets.push({ header, payload });
+      this.progress = {
+        ...this.progress,
+        state: 'receiving',
+        packetsDecoded: this.progress.packetsDecoded + 1,
+        elapsedMs: Date.now() - this._startTime,
+      };
+      this._notify();
+      return;
+    }
+
+    if (!this._decoder.isComplete) {
       this._decoder.addPacket(header.packetIndex, payload);
       this.progress = {
         ...this.progress,
+        state: 'receiving',
         blocksReceived: this._decoder.recoveredCount,
         packetsDecoded: this.progress.packetsDecoded + 1,
+        elapsedMs: Date.now() - this._startTime,
       };
       this._notify();
 
@@ -227,12 +389,13 @@ export class RealReceiveSession implements ReceiveSession {
       sha256: calculatedHash,
       verified,
       encrypted: this._metadata.encrypted,
-      elapsedMs: this.progress.elapsedMs,
+      elapsedMs: Date.now() - this._startTime,
       packetsDecoded: this.progress.packetsDecoded,
       packetsFailed: this.progress.packetsFailed,
     };
 
     this.progress = { ...this.progress, state: 'completed' };
     this._notify();
+    this._audioEngine.stop();
   }
 }
